@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 import { useAuth } from '../features/auth/AuthContext';
 import { wordApi, type Word, type InsertWordDTO } from '../features/word-bank/api';
 import { WordBankForm } from '../features/word-bank/WordBankForm';
-import { PixelButton } from '../components/ui/PixelButton';
 
 export default function WordBank() {
   const { user } = useAuth();
@@ -11,6 +10,10 @@ export default function WordBank() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<Partial<Word>>({});
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  
+  // Search states
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
 
   useEffect(() => {
     if (!user) return;
@@ -36,6 +39,16 @@ export default function WordBank() {
     setWords(words.filter(w => w.id !== id));
     setDeletingId(null);
   };
+
+  const filteredWords = words.filter(word => {
+    const query = searchQuery.toLowerCase();
+    return (
+      word.word.toLowerCase().includes(query) ||
+      word.definition.toLowerCase().includes(query) ||
+      (word.part_of_speech && word.part_of_speech.toLowerCase().includes(query)) ||
+      (word.example_sentence && word.example_sentence.toLowerCase().includes(query))
+    );
+  });
 
   const toggleQuizStatus = async (word: Word) => {
     const updated = await wordApi.updateWord(word.id, { is_in_quiz: !word.is_in_quiz });
@@ -68,6 +81,12 @@ export default function WordBank() {
     setEditForm({});
   };
 
+  const handleOpenSearch = () => {
+    if (searchQuery.trim() !== '') {
+      setIsSearchModalOpen(true);
+    }
+  };
+
   if (!user) {
     return (
       <div className="text-center mt-20">
@@ -78,7 +97,26 @@ export default function WordBank() {
 
   return (
     <div>
-      <h2 className="text-3xl mb-6 border-b-4 border-[var(--color-nes-dark)] inline-block">📋 Word Bank</h2>
+      <div className='flex justify-between items-end mb-6'>
+        <h2 className="text-3xl border-b-4 border-[var(--color-nes-dark)] inline-block">📋 Word Bank</h2>
+        
+        {/* Search Bar */}
+        <div className='flex justify-center items-center'>
+          <input 
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && handleOpenSearch()}
+            className="h-10 text-sm border-2 border-[var(--color-nes-dark)] p-2 outline-none focus:border-[var(--color-nes-blue)] bg-white text-black translate-x-0.5" 
+            placeholder="Search words..."
+          />
+          <button 
+            onClick={handleOpenSearch} 
+            className="h-10 bg-[var(--color-nes-blue)] text-white px-3 py-1 font-bold border-2 border-[var(--color-nes-dark)] hover:brightness-110 active:translate-y-1"
+          >
+            🔍 Search
+          </button>
+        </div>
+      </div>
       
       <WordBankForm onAdd={handleAddWord} />
 
@@ -170,6 +208,46 @@ export default function WordBank() {
           </table>
         )}
       </div>
+
+      {/* Search Result Popup (Modal) */}
+      {isSearchModalOpen && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-[var(--color-nes-light)] pixel-border w-full max-w-2xl max-h-[80vh] flex flex-col shadow-2xl">
+            {/* Modal Header */}
+            <div className="bg-[var(--color-nes-dark)] text-[var(--color-nes-light)] p-3 flex justify-between items-center border-b-4 border-[var(--color-nes-dark)]">
+              <h3 className="font-bold text-lg">🔍 Search Results for "{searchQuery}"</h3>
+              <button 
+                onClick={() => setIsSearchModalOpen(false)}
+                className="text-white hover:text-[var(--color-nes-red)] text-2xl font-bold leading-none px-2 active:translate-y-1"
+              >
+                ×
+              </button>
+            </div>
+            
+            {/* Modal Body */}
+            <div className="p-4 overflow-y-auto">
+              {filteredWords.length === 0 ? (
+                <p className="text-center py-10 text-gray-500 font-bold">No matching words found.</p>
+              ) : (
+                <div className="flex flex-col gap-4">
+                  {filteredWords.map((word) => (
+                    <div key={word.id} className="p-4 bg-white border-4 border-gray-300 transition-colors">
+                      <div className="flex items-end gap-3 mb-2">
+                        <h4 className="text-2xl font-bold font-['Press_Start_2P'] tracking-tighter text-[var(--color-nes-blue)]">{word.word}</h4>
+                        {word.part_of_speech && <span className="bg-gray-200 text-gray-700 px-2 py-1 text-xs font-bold rounded">{word.part_of_speech}</span>}
+                      </div>
+                      <p className="text-lg text-gray-800 border-l-4 border-[var(--color-nes-blue)] pl-3 my-2">{word.definition}</p>
+                      {word.example_sentence && (
+                        <p className="mt-2 text-sm text-gray-500 italic bg-gray-50 p-2">"{word.example_sentence}"</p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
